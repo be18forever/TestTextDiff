@@ -3,8 +3,8 @@
     <soap12:Body>
         <GrabaServicios xmlns="http://www.asmred.com/">
             <docIn >
-                <Servicios uidcliente="6BAB7A53-3B6D-4D5A-9450-702D2FAC0B11"  xmlns="http://www.asmred.com/" >
-                    <Envio codbarras="">
+                <Servicios uidcliente="6BAB7A53-3B6D-4D5A-9450-702D2FAC0B11" xmlns="http://www.asmred.com/">
+                    <Envio codbarras="" >
                         <Fecha>14/08/2014</Fecha>
                         <Portes>P</Portes>
                         <Servicio>1</Servicio>
@@ -15,44 +15,27 @@
                         <Pod>N</Pod>
                         <Remite>
                             <Plaza></Plaza>
-                            <Nombre>
-                                ARG Solutions
-                            </Nombre>
-                            <Direccion>
-                                C/Dolca de Provenca 2222
-                            </Direccion>
-                            <Poblacion>
-                                Premia de Dalt
-                            </Poblacion>
-                            <Provincia>
-                                CDATA[Barcelona
-                            </Provincia>
+                            <Nombre>ARG Solutions</Nombre>
+                            <Direccion>C/Dolca de Provenca 2222</Direccion>
+                            <Poblacion>Premia de Dalt</Poblacion>
+                            <Provincia>Barcelona</Provincia>
                             <Pais>34</Pais>
                             <CP>08338</CP>
-                            <Telefono>
-                                961111111
-                            </Telefono>
-            
+                            <Telefono>961111111</Telefono>
                         </Remite>
                         <Destinatario>
                             <Codigo></Codigo>
                             <Plaza></Plaza>
-                            <Nombre>
-                                Mr Test
-                            </Nombre>
-                            <Direccion>
-                                Calle Juan Esplandi 513b
-                            </Direccion>
-                            <Poblacion>
-                                 Madrid
-                            </Poblacion>
+                            <Nombre>Mr Test</Nombre>
+                            <Direccion>Calle Juan Esplandi 513b</Direccion>
+                            <Poblacion>Madrid</Poblacion>
                             <Provincia>Madrid</Provincia>
                             <Pais>34</Pais>
-                            <CP>28007</CP>
+                            <CP>280007</CP>
+        
                         </Destinatario>
                         <DevuelveAdicionales>
                             <Etiqueta tipo="PDF"></Etiqueta>
--
                         </DevuelveAdicionales>
                     </Envio>
                 </Servicios>
