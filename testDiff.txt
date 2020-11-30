@@ -1,316 +1,215 @@
+
+use AGSoft_Spain
 -- Sy_Search: Ware_Cat_Stock.Grid1
-Declare @var2 NVarChar(5);	Set @var2='1900w'   	--?vars.txt1               
-Declare @var3 Bit;        	Set @var3='False'   	--?vars.lZero              
-Declare @var4 NVarChar(3);	Set @var4='509'     	--?_Screen.oUser.User_Id   
-Declare @var5 NVarChar(1);	Set @var5='1'       	--?_Screen.oSys.language_id
-Declare @var6 Float;      	Set @var6='15710'   	--?Grid1.Goods_Id          
-Declare @var7 NVarChar;   	Set @var7=''        	--?vars.Sy_Key             
 SET LOCK_TIMEOUT 60000
 SET XACT_ABORT ON
-Declare @txt1 VarChar(50)
-	, @Zero bit
-	, @Date1 VarChar(8)
-	, @Date2 VarChar(8)
-	, @Fix_Shelf_Id Int
-	, @NotShelf_Code varchar(1000) -- CSR 20160421 加入指定货架出货
-	, @User_Id Integer 
-	, @LangId  Integer
-	, @Depot_Spec    Integer		
-	, @Depot_Sy_Key  Varchar(100)
-	, @Comps VarChar(max)
+Declare
+     @Zero bit
+  , @Fix_Shelf_Id Int
+  , @NotShelf_Code varchar(1000) -- CSR 20160421 加入指定货架出货
+  , @Depot_Spec    Integer
+  , @Depot_Sy_Key  Varchar(100)
+  , @Comps VarChar(max)
 
--- modi by csr 20180509 优化性能 去掉不必要的数据项
-	
-Select @NotShelf_Code	= ',' 
--- 获取所有被其他应用指定货架		  
-Select  @NotShelf_Code = @NotShelf_Code + Ppt_Value+','
-	From Sy_Property_Ext
-	Where PPt_No Like 'DSCP_SHELF%'	
-	
-Select @Txt1 = '%' + @var2  + '%'
-	, @Zero = @var3 
-	, @Date1 = Convert(VarChar(8), DateAdd(d, -31, GetDate()), 112)
-	, @Date2 = Convert(VarChar(8), DateAdd(d, -1, GetDate()), 112)
-	, @User_Id  = @var4 
-	, @LangId = @var5 
-	, @Depot_Spec = 0 
-	, @Depot_Sy_Key = ''
-	, @Comps = '2'
-/*
-Select @Txt1 = '%Air cooler 02，220-240V,50HZ%'
-	, @Zero = 0
-	, @Date1 = Convert(VarChar(8), DateAdd(d, -31, GetDate()), 112)
-	, @Date2 = Convert(VarChar(8), DateAdd(d, -1, GetDate()), 112)
-	, @User_Id = 1
-	, @LangId = 1
-	, @Depot_Spec = 0 
-	, @Depot_Sy_Key = ''
-	, @Comps = '1,2'
-*/
-
+Select @NotShelf_Code = ','
+Select
+   @Zero ='true'
+  , @Depot_Spec = 0
+  , @Depot_Sy_Key = ''
+  , @Comps = 2
 Select @Comps = @Comps + ',0'
 
 -- 获取网销专用库设置
-Select @Depot_Spec = Case When SubString(Cf_Value,1,10) = '' Then 0 Else Convert(Integer , SubString(Cf_Value,1,10)) End 
-	From Sy_Config 
-	Where cf_Code Like '网销专用仓库%'
+Select @Depot_Spec = Case When SubString(Cf_Value,1,10) = '' Then 0 Else Convert(Integer , SubString(Cf_Value,1,10)) End
+  From Sy_Config
+  Where cf_Code Like '网销专用仓库%'
 Select @Depot_Sy_Key = Sy_Key From  TZd_Depot Where Depot_Id = @Depot_Spec
-	
-	
+
+
 Declare @IsZero bit
-Select @IsZero = dbo.Fn_UserPower_Form(@User_Id , 'PriceView')|dbo.Fn_UserPower_Form(@User_Id, 'StockCbPrice')
+Select @IsZero =1
 
 -- 排除返修货架
 Select @Fix_Shelf_Id = Shelf_Id From vZd_Shelf_Th
 Select @Fix_Shelf_Id = IsNull(@Fix_Shelf_Id, 0)
 
-If OBJECT_ID('tempdb..#TmpClass') Is Not Null
-	Drop Table #TmpClass
+
 
 If OBJECT_ID('tempdb..#Stocks') Is Not Null
-	Drop Table #Stocks
+  Drop Table #Stocks
 
 If OBJECT_ID('tempdb..#Goods') Is Not Null
-	Drop Table #Goods
+  Drop Table #Goods
 
 -- 先返回商品列表
 Select
-	gs.Goods_Id , gs.Class_Id , gs.Trade_Id
-  Into #Goods 
+  gs.Goods_Id , gs.Class_Id , gs.Trade_Id
+  Into #Goods
 From TZd_Goods gs  With (NoLock)
 Left Join TZd_ClassSet cb5
-	On gs.Class_Id = cb5.Class_Id
+  On gs.Class_Id = cb5.Class_Id
 Left Join TZd_ClassSet cb6
-	On gs.Trade_Id = cb6.Class_Id
+  On gs.Trade_Id = cb6.Class_Id
 Where gs.Sy_Delete = Convert(bit,0)
-	-- And (gs.Comp_Id = 0 Or gs.Comp_Id In (2))
-	And Exists(Select 1 from dbo.Fn_Split(@Comps, ',') t Where t.cValue = gs.Comp_Id)
-	And (gs.Py_Code Like @Txt1
-Or gs.Goods_Code Like @Txt1
-Or gs.Goods_Name Like @Txt1
-Or gs.Goods_Name2 Like @Txt1
-Or Exists(select 1 from tzd_Goods_Bar br where br.goods_id = gs.goods_id and barcode like @Txt1 And br.Sy_Delete = 0)) 
-	And (gs.Py_Code Like @Txt1
-		Or gs.Goods_Code Like @Txt1
-		Or gs.Goods_Name Like @Txt1
-		Or gs.Goods_Name2 Like @Txt1
-		Or Exists(select 1 from tzd_Goods_Bar br where br.goods_id = gs.goods_id and barcode like @Txt1 And br.Sy_Delete = 0)
-		)
+  -- And (gs.Comp_Id = 0 Or gs.Comp_Id In (2))
+  And Exists(Select 1 from dbo.Fn_Split(@Comps, ',') t Where t.cValue = gs.Comp_Id)
 Order By gs.Goods_Code
 
 Create Index Ind_TmpGoods_Goods_Id On #Goods(Goods_Id)
 Create Index Ind_TmpGoods_Class_Id On #Goods(Class_Id)
 
--- add by csr 20141017 增加翻译直接从数据库取数,无权访问AgAccSet库，不能用
-Select 
-  cl.Gp_Id, cl.Parent_Id, cl.Class_Id, cl.Class_Code
-  , Class_Name = dbo.FN_GetFullClassName2(cl.Class_Id , @LangId ) 
-  -- Case When IsNull(lt.Sl_LangTrans , '') = '' Then cl.Class_Name Else lt.Sl_LangTrans End
-  , cl.Class_Py, cl.Class_Memof, cl.Sy_Key, cl.Sy_Delete
-Into #TmpClass
-From TZd_ClassSet cl  With (NoLock)
-Left Join AG_LangTrans lt 
-	On lt.Language_Id =  @LangId And lt.Sl_LangChina = cl.Class_Name And lt.Sy_Delete = CONVERT(bit, 0)
-Where cl.Sy_Delete  = CONVERT(bit, 0)
-  And cl.Gp_Id In (5,6)
-  And (cl.Class_Id In (select distinct Class_Id From #Goods)
-	    Or cl.Class_Id In (select distinct Trade_Id From #Goods)
-  	  )
-  
-Create Index Ind_StockSearch_Class_id On #TmpClass(Class_id)
 
 -- 汇总库存，排除停用与返修货架
 Select sk.Goods_Id
-	-- , Count(1) As Sk_Rows
-	, Sum(sk.Sk_cntQty) As Sk_cntQty
-	, Sum(Case When dp.IsPause = CONVERT(bit, 0) And sk.IsPause = CONVERT(bit, 0) And sk.Shelf_Id <> @Fix_Shelf_Id And sf.IsPause = CONVERT(bit, 0)
-			Then 1 Else 0 End * sk.Sk_canQty) As Sk_canQty
-	, Sum(Case When @Depot_Sy_Key <> '' 
-			And dp.Sy_key Like @Depot_Sy_Key +'%' And sk.Shelf_Id <> @Fix_Shelf_Id And sf.IsPause = CONVERT(bit, 0) And dp.IsPause = CONVERT(bit, 0) And sk.IsPause = CONVERT(bit, 0)
-			And PatIndex('%,' + sf.Shelf_Code + ',%' , ',' + @NotShelf_Code + ',') = 0 Then 1 Else 0 End * sk.Sk_CanQty)  As Sk_CanQty_Wx
-	, Sum(Case When PatIndex('%,' + sf.Shelf_Code + ',%' , ',' + @NotShelf_Code + ',') = 0
-			Then 0 Else 1 End * sk.Sk_canQty) As Sk_canQty_FBA
-	, Sum(sk.Sk_Cost) As Sk_Cost
-	, Sum(sk.Sk_HsCost) As Sk_HsCost
-	Into #Stocks
+  -- , Count(1) As Sk_Rows
+  , Sum(sk.Sk_cntQty) As Sk_cntQty
+  , Sum(Case When dp.IsPause = CONVERT(bit, 0) And sk.IsPause = CONVERT(bit, 0) And sk.Shelf_Id <> @Fix_Shelf_Id And sf.IsPause = CONVERT(bit, 0)
+      Then 1 Else 0 End * sk.Sk_canQty) As Sk_canQty
+  , Sum(Case When @Depot_Sy_Key <> ''
+      And dp.Sy_key Like @Depot_Sy_Key +'%' And sk.Shelf_Id <> @Fix_Shelf_Id And sf.IsPause = CONVERT(bit, 0) And dp.IsPause = CONVERT(bit, 0) And sk.IsPause = CONVERT(bit, 0)
+      And PatIndex('%,' + sf.Shelf_Code + ',%' , ',' + @NotShelf_Code + ',') = 0 Then 1 Else 0 End * sk.Sk_CanQty)  As Sk_CanQty_Wx
+  , Sum(Case When PatIndex('%,' + sf.Shelf_Code + ',%' , ',' + @NotShelf_Code + ',') = 0
+      Then 0 Else 1 End * sk.Sk_canQty) As Sk_canQty_FBA
+  , Sum(sk.Sk_Cost) As Sk_Cost
+  , Sum(sk.Sk_HsCost) As Sk_HsCost
+  Into #Stocks
 From T_Stocks sk  With (NoLock)
 Inner Join #Goods tmp On tmp.Goods_id = sk.Goods_Id
 Left Join TZd_Depot dp   With (NoLock)
-	On sk.Depot_Id = dp.Depot_Id
+  On sk.Depot_Id = dp.Depot_Id
 Left Join TZd_Shelf sf  With (NoLock) On sf.Shelf_id = sk.Shelf_Id
--- Where sk.Sk_cntQty <> 0
--- del by csr 20140506 Where sk.Sk_cntQty <> 0
 Group By sk.Goods_Id
 
 Create Index Ind_TmpStocks_Goods_Id On #Stocks(Goods_Id)
 
--- Sk_canQty_1 = 批发可用数量
+Select @NotShelf_Code = ','
 
-Select -- Sk_CanQty_1 = Sk_CanQty - Sk_CanQty_FBA - Ebp_LockQty
-		Sk_CanQty_1 = dbo.FN_Max(Sk_CanQty - Sk_CanQty_FBA - Ebp_LockQty, 0)
-		, * 
+-- 获取所有被其他应用指定货架
+Select  @NotShelf_Code = @NotShelf_Code + Ppt_Value+','
+  From Sy_Property_Ext
+  Where PPt_No Like 'DSCP_SHELF%'
+
+
+
+
+
+
+Declare @WxDepot_Id Integer
+, @WxDepot_Sy_Key Varchar(255)
+Select @WxDepot_Id = 0 , @WxDepot_Sy_Key = ''
+Select Top 1 @WxDepot_Id = Convert(Int ,SubString(Cf_Value ,1 , 10)) From Sy_Config Where Cf_Code = '网销专用仓库'
+If ISNULL(@WxDepot_Id, 0) <> 0
+Begin
+Select @WxDepot_Sy_Key = Sy_Key From TZd_Depot Where Depot_Id = @WxDepot_Id
+End;
+
+SELECT GS.*,ISNULL(sk_1.Sk_canQty, 0) AS Sk_canQty, hbfh,ztdh_Bill_WillArriveDate = IsNull(zthd.Bill_WillArriveDate, '') FROM (
+SELECT TOP 3000 * FROM (
+ select SaleDouble,BarCode,Goods_id,Goods_Name,Goods_Code,'' as Goods_Suit,
+    G as Price,
+    dbo.FN_Corp_GoodsVipPrice_BS(29873,Goods_id) sPrice,
+BS_Name,Amount2,CntNum,isbuy,
+    dbo.FN_Corp_GoodsVipPrice(29873,Goods_id) vipp,
+ dbo.FN_Corp_GoodsIsVipPrice_t(29873,Goods_id,convert(varchar(8),getdate(),112)) isvip,
+    (select top 1 boc_symbol from TZd_Boc_Rates where boc_id=(select top 1 boc_id from tzd_corpinfo where corp_id=29873)) hbfh,
+ row_number() OVER (ORDER BY Sy_Time desc) rowid --//这里被改成按照时间排序 20181018
+ , tcs_trade.Class_Name as Trade_Name
+ from tzd_goods vgb
+ left join tzd_classset tcs_trade on vgb.Trade_Id= tcs_trade.Class_id and tcs_trade.gp_id=6
+ where goods_id in (
+  select goodid from AGWebArchiveSystem..GoodGroupItem where GroupId in (
+   select ID from AGWebArchiveSystem..GoodGroup where IsDelete=0 and TreeKey like (
+    select top 1 treekey from AGWebArchiveSystem..GoodGroup
+   where Id=497
+  )+'%')
+ )
+    and goods_id not in (select goods_id from Tzd_BsIgnoreGoods where Sy_Delete=0 and 0=0)
+ and vgb.ispause=0 and vgb.goods_id>0 and (vgb.Sy_Delete = 0)
+ AND (vgb.IsSale = 1) AND (vgb.Bs_EnableBS = 1)  AND vgb.Web_Enabled=1
+ and (vgb.Property like 'A' or vgb.Property like '%ES%' )
+ and (comp_id=0 or comp_id=2)
+    and ( goods_id>0 )
+ --and (BS_Name like '%'+@searchStr+'%' or BarCode like '%'+@searchStr+'%' or goods_name like  '%'+@searchStr+'%' or goods_suit like  '%'+@searchStr+'%')
+) N
+WHERE N.rowid>30*(1-1)) GS
+LEFT OUTER JOIN
+ (
+
+     select    good.Goods_Id,good.Sk_cntQty, sto.Sk_CanQty_1 as Sk_canQty  from
+     (SELECT sk.Goods_Id, SUM(sk.Sk_cntQty) AS Sk_cntQty, SUM(sk.Sk_canQty) AS Sk_canQty
+                            FROM dbo.T_Stocks AS sk
+       LEFT OUTER JOIN dbo.TZd_Depot AS dt ON sk.Depot_Id = dt.Depot_Id
+                            WHERE (sk.IsPause = 0) AND (dt.IsPause = 0)
+                            AND (sk.Shelf_Id <> (SELECT TOP 1 Shelf_Id FROM dbo.vZd_Shelf_Th))
+                            AND (sk.Shelf_Id NOT IN (SELECT Shelf_Id FROM TZd_Shelf Where ispause=1 or Shelf_Code In ('99-05-01','99-05-01','99-05-01','99-05-02','99-05-01','99-05-01','99-05-01','99-05-01','99-05-01','99-05-01','99-05-01','99-05-02','99-05-02','99-05-02','99-05-02','99-05-08','99-05-01','')  or shelf_code like '99-%' or shelf_code like '98-%'))
+                            And (IsNull(@WxDepot_Sy_Key, '') = '' Or  Not dt.Sy_key Like @WxDepot_Sy_Key+ '%')
+                            GROUP BY sk.Goods_Id) good
+     left join (
+
+Select top 1000000
+    Sk_CanQty_1 = dbo.FN_Max(Sk_CanQty - Sk_CanQty_FBA - Ebp_LockQty, 0)
+    ,Goods_id
 From (
-	Select 
-			IsNull(co.Comp_Code, '') As Comp_Code
-			-- 商品档案
-			, gs.Goods_Id, gs.Goods_Code, gs.Goods_Name, gs.Goods_Name2
-			, gs.Model, gs.Unit, gs.IsPause, gs.BarCode
+  Select
+      IsNull(co.Comp_Code, '') As Comp_Code
+      -- 商品档案
+      , gs.Goods_Id, gs.Goods_Code, gs.Goods_Name, gs.Goods_Name2
+      , gs.Model, gs.Unit, gs.IsPause, gs.BarCode
 
-			-- 库存汇总
-			, IsNull(sk.Sk_cntQty, 0) As Sk_cntQty
-			, IsNull(sk.Sk_canQty, 0) As Sk_canQty
-			, IsNull(sk.Sk_CanQty_Wx,0) As Sk_CanQty_Wx
-			, IsNull(sk.Sk_canQty_FBA ,0) As Sk_canQty_FBA
-			, @IsZero * IsNull(sk.Sk_Cost, 0) As Sk_Cost
-			, @IsZero * IsNull(sk.Sk_HsCost, 0) As Sk_HsCost
-			, @IsZero * dbo.Fn_AvgPrice(sk.Sk_Cost, sk.Sk_cntQty, 0) As Sk_Price
-			, @IsZero * dbo.Fn_AvgPrice(sk.Sk_HsCost, sk.Sk_cntQty, 0) As Sk_HsPrice
-			
-			-- 最近销售
-			, IsNull(xs1.Xs30Day, 0) As Xs30Day
-			
-			/*
-			-- 预售数量
-			, IsNull(ysd.Ysd_Qty, 0) As Ysd_Qty
-			*/
-			/* del by csr 20190220 查询优化
-			-- 返修货库存
-			, IsNull(hxh.Sub_Qty, 0) As Hxh_Qty
-			, IsNull(hxh.Sub_Amt, 0) As Hxh_Amt
-			*/
-			-- 类别档案
-			, IsNull(cb5.Class_Code, '') As Class_Code
-			, IsNull(cb5.Class_Name, '') As Class_Name
-			, IsNull(cb6.Class_Code, '') As Trade_Code
-			, IsNull(cb6.Class_Name, '') As Trade_Name
-			
-			/*
-			-- 在途数量
-			, IsNull(zt.ZtYAmount ,0) As ZtAmount
-			-- 采购订单数量
-			, IsNull(dd.ddYAmount ,0) As ddAmount
-			-- 可预售数量
-			, IsNull(sk.Sk_canQty, 0) + IsNull(zt.ZtYAmount ,0) - IsNull(ysd.Ysd_Qty, 0) Ys_CanQty		
-			*/
-			-- add by csr 20151204 默认货架
-			, gs.Df_Shelf_Id
-			, df.Shelf_Code  Df_Shelf_Code
+      -- 库存汇总
+      , IsNull(sk.Sk_cntQty, 0) As Sk_cntQty
+      , IsNull(sk.Sk_canQty, 0) As Sk_canQty
+      , IsNull(sk.Sk_CanQty_Wx,0) As Sk_CanQty_Wx
+      , IsNull(sk.Sk_canQty_FBA ,0) As Sk_canQty_FBA
+      , @IsZero * IsNull(sk.Sk_Cost, 0) As Sk_Cost
+      , @IsZero * IsNull(sk.Sk_HsCost, 0) As Sk_HsCost
+      , @IsZero * dbo.Fn_AvgPrice(sk.Sk_Cost, sk.Sk_cntQty, 0) As Sk_Price
+      , @IsZero * dbo.Fn_AvgPrice(sk.Sk_HsCost, sk.Sk_cntQty, 0) As Sk_HsPrice
+      -- 最近销售
+      , IsNull(xs1.Xs30Day, 0) As Xs30Day
+      -- 类别档案
+      , gs.Df_Shelf_Id
+      , df.Shelf_Code  Df_Shelf_Code
+      , Ebp_LockQty = dbo.FN_Max(IsNull(c.Goods_LockQty - c.Goods_UseQty, 0), 0)
+  From #Goods Tmp
+  Inner Join TZd_Goods gs With (NoLock) On gs.Goods_id = tmp.Goods_Id
+  Left Join Sy_Company co On gs.Comp_Id = co.Comp_Id
+  Left Join TZd_Shelf df With (NoLock) On df.Shelf_id = gs.Df_Shelf_Id
+  Left Join #Stocks sk On tmp.Goods_Id = sk.Goods_Id
+  Left Join (
+    -- 30 天销售量
+    Select b.Goods_Id, Sum(b.Sub_Qty) As Xs30Day
+    From T_Outdepot a With (NoLock)
+    Left Join T_Outdepots b With (NoLock,Index=IX_T_Outdepots_Bill_id)
+      On a.Srv_Id = b.Srv_Id And a.Bill_Id = b.Bill_Id
+    Where a.Sy_Delete = Convert(bit,0)
+      And a.Sy_Flag >= 0
+      And b.Sy_Delete = Convert(bit,0)
+    Group By b.Goods_Id
+      )  xs1 On gs.Goods_Id = xs1.Goods_Id
+    -- CAT 2020-05-12
+    Left Join (
+        Select c.Goods_Id, c.Goods_LockQty, c.Goods_UseQty
+        From V_Ebp_LockStocks c
+        Where Exists(Select 1 From #Goods t Where t.Goods_Id = c.Goods_Id)
+      ) c On tmp.Goods_Id = c.Goods_Id
+  Where (@Zero = 1 Or IsNull(sk.Sk_cntQty, 0) <> 0)
+  ) a
+Order By  a.Goods_Code
 
-			-- CAT 2020-05-12
-			, Ebp_LockQty = dbo.FN_Max(IsNull(c.Goods_LockQty - c.Goods_UseQty, 0), 0)
-	From #Goods Tmp
-	Inner Join TZd_Goods gs With (NoLock) On gs.Goods_id = tmp.Goods_Id
-	Left Join Sy_Company co On gs.Comp_Id = co.Comp_Id
-	Left Join TZd_Shelf df With (NoLock) On df.Shelf_id = gs.Df_Shelf_Id
-	Left Join #Stocks sk On tmp.Goods_Id = sk.Goods_Id
-	Left Join #TmpClass cb5 On gs.Class_Id = cb5.Class_Id
-	Left Join #TmpClass cb6 On gs.Trade_Id = cb6.Class_Id
-	Left Join (
-		-- 30 天销售量
-		Select b.Goods_Id, Sum(b.Sub_Qty) As Xs30Day
-		From T_Outdepot a With (NoLock)
-		Left Join T_Outdepots b With (NoLock,Index=IX_T_Outdepots_Bill_id)
-			On a.Srv_Id = b.Srv_Id And a.Bill_Id = b.Bill_Id
-		Where a.Sy_Delete = Convert(bit,0)
-			And a.Sy_Flag >= 0
-			And b.Sy_Delete = Convert(bit,0)
-			And a.Bill_Date BetWeen @Date1 And @Date2 
-		Group By b.Goods_Id
-			)  xs1 On gs.Goods_Id = xs1.Goods_Id
-		-- CAT 2020-05-12
-		Left Join (
-				Select c.Goods_Id, c.Goods_LockQty, c.Goods_UseQty 
-				From V_Ebp_LockStocks c 
-				Where Exists(Select 1 From #Goods t Where t.Goods_Id = c.Goods_Id)
-			) c On tmp.Goods_Id = c.Goods_Id
 
-	/*
-	Left Join (
-			-- 预售数量
-			Select b.Goods_Id, Sum(Sub_Qty) As Ysd_Qty
-			from T_OutBooks b
-			Left Join T_OutBook a
-				On a.Srv_Id = b.Srv_Id And a.Bill_Id = b.Bill_Id
-			Where a.Sy_Flag = 0
-			  And b.Sy_Delete =0 
-			  And a.Sy_Delete = 0
-			  And a.IsClose = 0
-			Group By b.Goods_Id
-		) ysd
-		On gs.Goods_Id = ysd.Goods_Id
-	*/
-	/*
-	Left Join (
-			-- 返修货库存
-			Select b.Goods_Id
-				, Sub_Qty = Sum(b.Sub_Qty - b.Sub_OutQty)
-				, Sub_Amt = Sum((b.Sub_Qty - b.Sub_OutQty) * b.Sk_Price)
-			From T_FixReOrg a With (NoLock)
-			Left Join T_FixReOrgs b With (NoLock)
-				On a.Srv_id = b.Srv_Id And a.Bill_Id = b.Bill_Id
-			Where a.Sy_Flag >= 0
-				And a.Sy_Delete = Convert(bit,0)
-				And b.Sy_Delete = Convert(bit,0)
-				And b.Sub_Qty - b.Sub_OutQty <> 0
-			Group By Goods_Id
-		) hxh
-		On gs.Goods_Id = hxh.Goods_Id
+         )    sto on good.Goods_Id =sto.Goods_id
 
-	Left Join (
-		  Select a.Goods_Id ,Sum(a.Amount - d.Amount) ZtYAmount
-			   From dbo.T_InBooks a
-			   Inner Join T_InBook c 
-						On a.Bill_id = c.Bill_Id
-						 and a.Srv_id = c.Srv_Id
-						 and c.Sy_Delete = 0
-						 and c.Flag >= 1
-						 and c.IsClose =0
-			   Left join (Select bb.MSrv_Id ,bb.Mtb_Sub_id , IsNull(Sum(Amount),0) As Amount 
-							From T_InDepots ba 
-							Inner Join T_InOrds_Rela bb 
-									On ba.Srv_id = bb.Srv_id
-									 and ba.Sub_id = bb.Dtb_Sub_id
-									 and bb.Bill_Type = 'RKD'
-									 and bb.Sy_Delete = 0
-							Inner Join T_InDepot bc 
-									On bc.Srv_id = ba.Srv_id 
-									 And bc.Bill_id = ba.Bill_Id 
-									 And bc.Sy_Delete = CONVERT(bit,0) 
-									 And bc.Flag >= 0
-						   Where ba.Sy_Delete = 0
-						   Group By bb.MSrv_Id ,bb.Mtb_Sub_id
-						) d On d.MSrv_Id = a.Srv_id And d.Mtb_Sub_id = a.Sub_Id
-				Where a.Sy_Delete = 0
-	    Group by a.Goods_Id
-	    ) zt On zt.Goods_id = gs.Goods_Id
-	Left Join (
-		  Select a.Goods_Id ,Sum(a.Amount - d.Amount) ddYAmount
-			   From dbo.T_InOrders a
-			   Inner Join T_InOrder c 
-					On a.Bill_id = c.Bill_Id 
-						And a.Srv_id = c.Srv_Id 
-						And c.Sy_Delete = 0 
-						And c.Flag >= 1
-						And c.IsClose =0
-			   Left Join (Select bb.MSrv_Id ,bb.Mtb_Sub_id , IsNull(Sum(Amount),0) As Amount 
-							From T_InBooks ba 
-							Inner Join T_InOrds_Rela bb 
-									On ba.Srv_id = bb.Srv_id
-									 and ba.Sub_id = bb.Dtb_Sub_id
-									 and bb.Bill_Type = 'ZTD'
-									 and bb.Sy_Delete = 0
-							Inner Join T_InBook bc 
-									On bc.Srv_id = ba.Srv_id 
-									 And bc.Bill_id = ba.Bill_Id 
-									 And bc.Sy_Delete = CONVERT(bit,0) 
-									 And bc.Flag >= 0
-						   Where ba.Sy_Delete = 0
-						   Group By bb.MSrv_Id ,bb.Mtb_Sub_id
-						 ) d  On d.MSrv_Id = a.Srv_id And d.Mtb_Sub_id = a.Sub_Id
-			   Where a.Sy_Delete = 0
-	    Group by a.Goods_Id
-	    ) dd On dd.Goods_id = gs.Goods_Id
-	*/
-	Where (@Zero = 1 Or IsNull(sk.Sk_cntQty, 0) <> 0)
-	) a 
-Order By a.Class_Code, a.Goods_Code
+     )
+ AS sk_1 ON gs.Goods_id = sk_1.Goods_Id
+Left Join (
+  Select b.Goods_Id, Bill_WillArriveDate = min(a.Bill_WillArriveDate)
+  From T_InBook a
+  Left Join T_InBooks b
+   On a.Srv_Id = b.Srv_Id And a.Bill_Id = b.Bill_Id
+  Where a.IsClose = 0
+   And dbo.FN_GetRelaInOrds_Amount('RKD', b.Bill_Id, b.Sub_Id, b.Srv_Id) = 0
+            And a.Bill_WillArriveDate>=convert(varchar(8),getdate(),112)
+  Group By b.Goods_Id
+ ) zthd
+ On gs.Goods_id = zthd.Goods_Id WHERE (isbuy=1 or Sk_canQty>0)
